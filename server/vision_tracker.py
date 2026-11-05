@@ -22,12 +22,13 @@ VEHICLE_CLASS_LABELS = {
 # Lazos virtuales / Zonas de parada de precisión calibradas para la maqueta (320x240)
 LANE_SPOTS = {
     1: [
-        {"name": "Subcarril Superior", "box": (185, 48, 290, 102)},
-        {"name": "Subcarril Inferior", "box": (185, 108, 290, 162)},
+        {"name": "Subcarril 1 (Superior)", "box": (180, 48, 305, 98)},
+        {"name": "Subcarril 2 (Central)",  "box": (180, 104, 305, 154)},
+        {"name": "Subcarril 3 (Inferior)", "box": (180, 160, 305, 210)},
     ],
     2: [
-        {"name": "Subcarril Izquierdo", "box": (148, 38, 202, 152)},
-        {"name": "Subcarril Derecho",   "box": (212, 38, 268, 152)},
+        {"name": "Subcarril 1 (Izquierdo)", "box": (148, 38, 202, 152)},
+        {"name": "Subcarril 2 (Derecho)",   "box": (212, 38, 268, 152)},
     ],
 }
 
@@ -428,6 +429,19 @@ class VisionTracker:
                     cv2.rectangle(annotated, (sx1, sy1), (sx2, sy2), (90, 90, 90), 1)
                     cv2.putText(annotated, "Libre", (sx1 + 4, sy1 + 14),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.32, (150, 150, 150), 1)
+
+            # Detectar vehículos adicionales identificados por YOLO fuera de los lazos principales
+            for yb in yolo_boxes:
+                already_claimed = any(
+                    (spot["box"][0] - 15 <= yb[6] <= spot["box"][2] + 15 and spot["box"][1] - 15 <= yb[7] <= spot["box"][3] + 15)
+                    for spot, occ, _, _ in spot_details if occ
+                )
+                if not already_claimed:
+                    count += 1
+                    lane_classes["car"] += 1
+                    cv2.rectangle(annotated, (yb[0], yb[1]), (yb[2], yb[3]), (0, 255, 0), 2)
+                    cv2.putText(annotated, f"Auto {yb[5]:.2f}", (yb[0], max(15, yb[1] - 4)),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.38, (0, 255, 0), 1)
 
         self.class_counts[lane_id] = lane_classes
 
