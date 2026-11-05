@@ -7,16 +7,10 @@ from typing import Tuple, Dict, Any, Optional
 
 VEHICLE_CLASS_NAMES = {
     2: "car",
-    3: "motorcycle",
-    5: "bus",
-    7: "truck",
     67: "car",  # En vista cenital 90° de maqueta, YOLO COCO detecta miniaturas Hot Wheels como 'cell phone'
 }
 VEHICLE_CLASS_LABELS = {
     "car": "Auto",
-    "motorcycle": "Moto",
-    "bus": "Bus",
-    "truck": "Camion",
 }
 
 # Lazos virtuales / Zonas de parada de precisión calibradas para la maqueta (320x240)
@@ -412,7 +406,7 @@ class VisionTracker:
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1, cv2.LINE_AA)
             elif self.mode == "yolo" and self.yolo_model is not None:
                 try:
-                    results = self.yolo_model.predict(frame, conf=self.confidence_threshold, verbose=False)
+                    results = self.yolo_model.predict(frame, conf=self.confidence_threshold, imgsz=256, classes=[2, 67], verbose=False)
                     for r in results:
                         for box in r.boxes:
                             cls_id = int(box.cls[0])
@@ -451,15 +445,15 @@ class VisionTracker:
                     edge_pct, std_dev, is_occupied = 0.0, 0.0, False
                 spot_details.append((spot, is_occupied, edge_pct, std_dev))
 
-            # Detección YOLOv8 optimizada con caché de 0.8 s
+            # Detección YOLOv8 ultra-rápida (imgsz=256) con caché de 0.5 s
             # Permite que la respuesta de presencia sea instantánea (< 20 ms) sin saturar la CPU
             now = time.time()
             if self.mode == "yolo" and self.yolo_model is not None:
-                if (now - self.last_yolo_time[lane_id]) >= 0.8:
+                if (now - self.last_yolo_time[lane_id]) >= 0.5:
                     self.last_yolo_time[lane_id] = now
                     current_yolo = []
                     try:
-                        results = self.yolo_model.predict(frame, conf=0.20, verbose=False)
+                        results = self.yolo_model.predict(frame, conf=0.20, imgsz=256, classes=[2, 67], verbose=False)
                         for r in results:
                             for box in r.boxes:
                                 cls_id = int(box.cls[0])
