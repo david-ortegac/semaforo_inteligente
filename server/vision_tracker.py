@@ -27,8 +27,8 @@ LANE_SPOTS = {
         {"name": "Subcarril 3 (Inferior)", "box": (180, 160, 305, 210)},
     ],
     2: [
-        {"name": "Subcarril 1 (Izquierdo)", "box": (148, 38, 202, 152)},
-        {"name": "Subcarril 2 (Derecho)",   "box": (212, 38, 268, 152)},
+        {"name": "Subcarril 1 (Izquierdo)", "box": (163, 45, 198, 132)},
+        {"name": "Subcarril 2 (Derecho)",   "box": (220, 45, 262, 132)},
     ],
 }
 
