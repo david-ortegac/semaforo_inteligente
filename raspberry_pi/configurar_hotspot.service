@@ -1,0 +1,16 @@
+[Unit]
+Description=Semaforo Inteligente - Configuracion de Hotspot Wi-Fi y Red
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/semaforo/semaforo/raspberry_pi
+ExecStart=/bin/bash /home/semaforo/semaforo/raspberry_pi/configurar_hotspot.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

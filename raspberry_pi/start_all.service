@@ -1,0 +1,19 @@
+[Unit]
+Description=Semaforo Inteligente - Sistema Completo (Camaras, Servidor y Dashboard Web)
+After=network.target network-online.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=semaforo
+Group=semaforo
+WorkingDirectory=/home/semaforo/semaforo
+Environment=PATH=/home/semaforo/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/bin/bash /home/semaforo/semaforo/raspberry_pi/start_all.sh
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
