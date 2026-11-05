@@ -22,9 +22,9 @@ VEHICLE_CLASS_LABELS = {
 # Lazos virtuales / Zonas de parada de precisión calibradas para la maqueta (320x240)
 LANE_SPOTS = {
     1: [
-        {"name": "Subcarril 1 (Superior)", "box": (180, 48, 305, 98)},
-        {"name": "Subcarril 2 (Central)",  "box": (180, 104, 305, 154)},
-        {"name": "Subcarril 3 (Inferior)", "box": (180, 160, 305, 210)},
+        {"name": "Subcarril 1 (Superior)", "box": (195, 48, 290, 98)},
+        {"name": "Subcarril 2 (Central)",  "box": (195, 112, 290, 148)},
+        {"name": "Subcarril 3 (Inferior)", "box": (195, 166, 290, 202)},
     ],
     2: [
         {"name": "Subcarril 1 (Izquierdo)", "box": (163, 45, 198, 132)},
@@ -377,10 +377,10 @@ class VisionTracker:
                 x1, y1, x2, y2 = spot["box"]
                 patch = gray[y1:y2, x1:x2]
                 if patch.size > 0:
-                    edges = cv2.Canny(patch, 30, 90)
+                    edges = cv2.Canny(patch, 35, 100)
                     edge_pct = (float(np.sum(edges > 0)) / float(edges.size)) * 100.0
                     std_dev = float(np.std(patch))
-                    is_occupied = (edge_pct >= 5.5) or (edge_pct >= 4.0 and std_dev >= 22.0)
+                    is_occupied = (edge_pct >= 6.5) or (edge_pct >= 5.0 and std_dev >= 20.0)
                 else:
                     edge_pct, std_dev, is_occupied = 0.0, 0.0, False
                 spot_details.append((spot, is_occupied, edge_pct, std_dev))
