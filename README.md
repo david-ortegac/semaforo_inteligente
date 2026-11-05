@@ -120,8 +120,9 @@ Gestiona el ciclo de vida del agente de hardware y del servidor web:
 
 ### 2. Daemon de Red y Hotspot (`NetworkManager`)
 NetworkManager levanta automáticamente el punto de acceso en el arranque:
-- **Perfil activo:** `Semaforo-Inteligente` en la interfaz `wlan0`.
-- **SSID:** `Semaforo-Inteligente` (o `semaforo`)
+- **Perfil activo:** `semaforo` en la interfaz `wlan0`.
+- **SSID:** `semaforo`
+- **Clave Wi-Fi:** `semaforo`
 - **IP Gateway:** `10.42.0.1`
 - **Hostname mDNS:** `semaforo.local`
 
