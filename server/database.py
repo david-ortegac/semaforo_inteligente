@@ -95,10 +95,11 @@ def get_stats(db_path: str = DB_PATH) -> Dict[str, Any]:
         "cause_counts": {
             "base_10s": cause_counts.get("base_10s", 0),
             "extension_15s": cause_counts.get("extension_15s", 0),
-            "empty_opposite_cut_5s": cause_counts.get("empty_opposite_cut_5s", 0),
-            "base_15s": cause_counts.get("base_15s", 0),
+            "extension_18s": cause_counts.get("extension_18s", 0),
             "extension_20s": cause_counts.get("extension_20s", 0),
+            "empty_opposite_cut_5s": cause_counts.get("empty_opposite_cut_5s", 0),
             "empty_lane_cut_5s": cause_counts.get("empty_lane_cut_5s", 0),
+            "base_15s": cause_counts.get("base_15s", 0),
             "manual_override": cause_counts.get("manual_override", 0),
         },
         "total_vehicles_lane1": v1_total,

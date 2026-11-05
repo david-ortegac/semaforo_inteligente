@@ -10,12 +10,12 @@ class TrafficController:
     
     Reglas implementadas:
     1. Verde base de 10 segundos.
-    2. Si el carril en verde tiene más vehículos que el contrario y el contrario no está en 0,
-       esa misma fase pasa a 15 segundos y ya no vuelve a 10.
-    3. A los 5 segundos, si el carril contrario sigue en 0, el verde cierra. Esta regla
-       gana a la extensión de 15 segundos.
-    4. Amarillo de 2 segundos antes de ceder el paso.
-    5. Cada cierre de verde queda registrado en SQLite.
+    2. Si el carril en verde tiene más vehículos que el contrario (incluso si el contrario está en 0),
+       esa misma fase se amplía a 18 segundos (EXTENDED_GREEN_TIME) para descongestionar el tráfico.
+    3. A los 5 segundos (EMPTY_LANE_CHECK_TIME), si el carril activo en verde está vacío (0 vehículos),
+       el verde cierra anticipadamente a amarillo para ceder el paso sin demoras.
+    4. Amarillo de 2 segundos de seguridad antes de ceder el paso.
+    5. Cada cierre de verde queda registrado con trazabilidad en SQLite.
     """
 
     def __init__(self, 
@@ -48,7 +48,7 @@ class TrafficController:
 
         # Tiempos configurables (en segundos)
         self.BASE_GREEN_TIME = 10.0
-        self.EXTENDED_GREEN_TIME = 15.0
+        self.EXTENDED_GREEN_TIME = 18.0
         self.EMPTY_LANE_CHECK_TIME = 5.0
         self.YELLOW_TIME = 2.0
 
@@ -217,19 +217,25 @@ class TrafficController:
                 opposite_vehicles = self.vehicles_lane2 if self.active_lane == 1 else self.vehicles_lane1
 
                 if "GREEN" in self.current_state:
+                    # 1. Chequeo de carril vacío a los 5 segundos:
+                    # Si el carril que tiene verde no tiene vehículos (0), se corta anticipadamente
+                    # para no hacer esperar al carril contrario.
                     if (not self.empty_check_done) and elapsed >= self.EMPTY_LANE_CHECK_TIME:
                         self.empty_check_done = True
-                        if opposite_vehicles == 0:
-                            self._transition_to_yellow("empty_opposite_cut_5s")
+                        if active_vehicles == 0:
+                            self._transition_to_yellow("empty_lane_cut_5s")
                             await asyncio.sleep(0.1)
                             continue
 
-                    if opposite_vehicles > 0 and active_vehicles > opposite_vehicles:
+                    # 2. Regla de prioridad y extensión por mayor demanda vehicular:
+                    # Si el carril activo tiene más vehículos que el contrario (incluso si el contrario está en 0),
+                    # se amplía la fase a tiempo extendido (18s) para descongestionar el carril.
+                    if active_vehicles > opposite_vehicles:
                         self.is_extended = True
 
                     limit = self.EXTENDED_GREEN_TIME if self.is_extended else self.BASE_GREEN_TIME
                     if elapsed >= limit:
-                        cause = "extension_15s" if self.is_extended else "base_10s"
+                        cause = f"extension_{int(self.EXTENDED_GREEN_TIME)}s" if self.is_extended else f"base_{int(self.BASE_GREEN_TIME)}s"
                         self._transition_to_yellow(cause)
                         await asyncio.sleep(0.1)
                         continue

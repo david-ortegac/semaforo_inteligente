@@ -205,7 +205,7 @@ document.addEventListener("DOMContentLoaded", () => {
             kpiTotalCycles.textContent = data.stats.total_cycles;
             kpiAvgDuration.innerHTML = `${data.stats.avg_duration.toFixed(1)}<small>s</small>`;
             const causes = data.stats.cause_counts || {};
-            kpiExtCount.textContent = causes.extension_15s || 0;
+            kpiExtCount.textContent = (causes.extension_15s || 0) + (causes.extension_18s || 0) + (causes.extension_20s || 0);
             kpiCutCount.textContent = (causes.empty_opposite_cut_5s || 0) + (causes.empty_lane_cut_5s || 0);
             kpiCarsTotal.textContent = (data.stats.total_vehicles_lane1 + data.stats.total_vehicles_lane2) || 0;
 
@@ -255,16 +255,16 @@ document.addEventListener("DOMContentLoaded", () => {
         if (data.is_extended) {
             ruleStatusBadge.textContent = `VERDE AMPLIADO A ${timing.extended_green}s`;
             ruleStatusBadge.style.color = "#fbbf24";
-            ruleExplanationText.textContent = `Este carril tiene ${activeCars} vehículos y el contrario ${oppositeCars}. Como hay más carritos aquí y el otro no está vacío, esta fase llega a ${timing.extended_green}s.`;
+            ruleExplanationText.textContent = `Este carril tiene ${activeCars} vehículos y el contrario ${oppositeCars}. Mayor demanda vehicular: fase ampliada a ${timing.extended_green}s.`;
             return;
         }
 
         if (elapsed < timing.empty_check) {
             ruleStatusBadge.textContent = `VERDE BASE ${timing.base_green}s · REVISIÓN A LOS ${timing.empty_check}s`;
             ruleStatusBadge.style.color = "var(--primary-cyan)";
-            ruleExplanationText.textContent = oppositeCars === 0
-                ? `Contrario en 0. Si sigue así al segundo ${timing.empty_check}, el verde cierra y entra el amarillo.`
-                : `Este carril: ${activeCars}. Contrario: ${oppositeCars}. El verde pasa a ${timing.extended_green}s solo si este carril queda por encima.`;
+            ruleExplanationText.textContent = activeCars === 0
+                ? `Carril actual sin vehículos (0). Si continúa vacío a los ${timing.empty_check}s, cerrará anticipadamente para no demorar al otro carril.`
+                : `Este carril: ${activeCars}. Contrario: ${oppositeCars}. El verde se ampliará a ${timing.extended_green}s si este carril supera al contrario.`;
             return;
         }
 
@@ -347,10 +347,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const causeLabels = {
                 base_10s: ["badge-base", "Verde base 10s"],
                 extension_15s: ["badge-extended", "Extensión a 15s"],
+                extension_18s: ["badge-extended", "Extensión a 18s"],
+                extension_20s: ["badge-extended", "Extensión a 20s"],
+                empty_lane_cut_5s: ["badge-cut", "Corte a 5s (carril vacío)"],
                 empty_opposite_cut_5s: ["badge-cut", "Corte a 5s (contrario vacío)"],
                 base_15s: ["badge-base", "Verde base 15s (histórico)"],
-                extension_20s: ["badge-extended", "Extensión a 20s (histórico)"],
-                empty_lane_cut_5s: ["badge-cut", "Corte a 5s (histórico)"],
                 manual_override: ["badge-manual", "Cambio manual"],
             };
 

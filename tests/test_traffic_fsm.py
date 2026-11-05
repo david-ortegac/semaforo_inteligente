@@ -66,14 +66,26 @@ class TestTrafficSystem(unittest.TestCase):
             ctrl.EMPTY_LANE_CHECK_TIME = 0.1
             ctrl.YELLOW_TIME = 0.05
 
-            # Corte al llegar al chequeo si el carril contrario está en 0
-            ctrl.update_vehicle_counts(3, 0)
+            # 1. Corte al llegar al chequeo si el carril ACTIVO está vacío (0)
+            ctrl.update_vehicle_counts(0, 3)
             await ctrl.start()
             await asyncio.sleep(0.18)
             self.assertIn("YELLOW", ctrl.current_state)
-            self.assertEqual(ctrl.vehicles_lane2, 0)
-
+            self.assertEqual(ctrl.vehicles_lane1, 0)
             await ctrl.stop()
+
+            # 2. Extensión si el carril activo supera al contrario (ej. 3 vs 0 o 3 vs 1)
+            ctrl2 = TrafficController()
+            ctrl2.BASE_GREEN_TIME = 0.2
+            ctrl2.EXTENDED_GREEN_TIME = 0.5
+            ctrl2.EMPTY_LANE_CHECK_TIME = 0.1
+            ctrl2.YELLOW_TIME = 0.05
+            ctrl2.update_vehicle_counts(3, 0)
+            await ctrl2.start()
+            await asyncio.sleep(0.26)  # Mayor que base (0.2s), menor que extended (0.5s)
+            self.assertIn("GREEN", ctrl2.current_state)
+            self.assertTrue(ctrl2.is_extended)
+            await ctrl2.stop()
 
         asyncio.run(run_fsm_test())
 
