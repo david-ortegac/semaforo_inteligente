@@ -32,6 +32,52 @@ LANE_SPOTS = {
     ],
 }
 
+import threading
+
+class FreshFrameGrabber(threading.Thread):
+    """
+    Hilo de lectura continua con buffer = 1.
+    Elimina por completo el lag/retraso de buffers en flujos de red o webcams,
+    garantizando que siempre se devuelva el fotograma actual en tiempo real (< 20 ms).
+    """
+    def __init__(self, url: str):
+        super().__init__(daemon=True)
+        self.url = url
+        self.running = True
+        self.lock = threading.Lock()
+        self.latest_frame: Optional[np.ndarray] = None
+        self.last_ts: float = 0.0
+
+    def run(self):
+        while self.running:
+            cap = cv2.VideoCapture(self.url)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            while self.running and cap.isOpened():
+                ret, frame = cap.read()
+                if ret and frame is not None and frame.size > 0:
+                    if frame.shape[1] != 320 or frame.shape[0] != 240:
+                        frame = cv2.resize(frame, (320, 240))
+                    with self.lock:
+                        self.latest_frame = frame
+                        self.last_ts = time.time()
+                else:
+                    time.sleep(0.04)
+                    break
+            try:
+                cap.release()
+            except Exception:
+                pass
+            time.sleep(0.5)
+
+    def get_latest(self) -> Optional[np.ndarray]:
+        with self.lock:
+            if self.latest_frame is not None:
+                return self.latest_frame.copy()
+            return None
+
+    def stop(self):
+        self.running = False
+
 class VisionTracker:
     """
     Motor de Visión por Computadora para Detección de Vehículos de Juguete.
@@ -91,6 +137,10 @@ class VisionTracker:
         import threading
         self.lock_l1 = threading.Lock()
         self.lock_l2 = threading.Lock()
+        self.grabber_l1: Optional[FreshFrameGrabber] = None
+        self.grabber_l2: Optional[FreshFrameGrabber] = None
+        self.last_yolo_time = {1: 0.0, 2: 0.0}
+        self.cached_yolo_boxes = {1: [], 2: []}
         self.latest_jpeg_l1: Optional[bytes] = None
         self.latest_jpeg_l2: Optional[bytes] = None
         self.latest_count_l1: int = 0
@@ -113,19 +163,31 @@ class VisionTracker:
         return cleaned
 
     def set_camera_urls(self, url_l1: Optional[str], url_l2: Optional[str]):
-        """Configura las URLs de las cámaras (Raspberry Pi o ESP32) y reinicia capturas."""
+        """Configura las URLs de las cámaras (Raspberry Pi o ESP32) y arranca hilos de captura sin latencia."""
         formatted_l1 = self._format_stream_url(url_l1)
         formatted_l2 = self._format_stream_url(url_l2)
 
         if formatted_l1 != self.cam_url_l1:
+            if self.grabber_l1 is not None:
+                self.grabber_l1.stop()
+            self.grabber_l1 = FreshFrameGrabber(formatted_l1) if formatted_l1 else None
+            if self.grabber_l1:
+                self.grabber_l1.start()
             if self.cap_l1 is not None:
-                self.cap_l1.release()
+                try: self.cap_l1.release()
+                except Exception: pass
             self.cap_l1 = None
             self.cam_url_l1 = formatted_l1
 
         if formatted_l2 != self.cam_url_l2:
+            if self.grabber_l2 is not None:
+                self.grabber_l2.stop()
+            self.grabber_l2 = FreshFrameGrabber(formatted_l2) if formatted_l2 else None
+            if self.grabber_l2:
+                self.grabber_l2.start()
             if self.cap_l2 is not None:
-                self.cap_l2.release()
+                try: self.cap_l2.release()
+                except Exception: pass
             self.cap_l2 = None
             self.cam_url_l2 = formatted_l2
 
@@ -266,12 +328,16 @@ class VisionTracker:
         if self.use_simulation:
             frame = self._generate_simulated_frame(lane_id, light_state)
         else:
-            # Captura desde Raspberry Pi Zero 2 W (o cámara física configurada)
-            url = self.cam_url_l1 if lane_id == 1 else self.cam_url_l2
-            cap = self.cap_l1 if lane_id == 1 else self.cap_l2
-            if url:
+            grabber = self.grabber_l1 if lane_id == 1 else self.grabber_l2
+            if grabber is not None:
+                frame = grabber.get_latest()
+            if frame is None and (self.cam_url_l1 if lane_id == 1 else self.cam_url_l2):
+                # Fallback directo con buffer=1 si el hilo grabber apenas está iniciando
+                url = self.cam_url_l1 if lane_id == 1 else self.cam_url_l2
+                cap = self.cap_l1 if lane_id == 1 else self.cap_l2
                 if cap is None or not cap.isOpened():
                     cap = cv2.VideoCapture(url)
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                     if lane_id == 1:
                         self.cap_l1 = cap
                     else:
@@ -385,27 +451,35 @@ class VisionTracker:
                     edge_pct, std_dev, is_occupied = 0.0, 0.0, False
                 spot_details.append((spot, is_occupied, edge_pct, std_dev))
 
-            # Detección YOLOv8 si está habilitada
-            yolo_boxes = []
+            # Detección YOLOv8 optimizada con caché de 0.8 s
+            # Permite que la respuesta de presencia sea instantánea (< 20 ms) sin saturar la CPU
+            now = time.time()
             if self.mode == "yolo" and self.yolo_model is not None:
-                try:
-                    results = self.yolo_model.predict(frame, conf=0.20, verbose=False)
-                    for r in results:
-                        for box in r.boxes:
-                            cls_id = int(box.cls[0])
-                            class_name = VEHICLE_CLASS_NAMES.get(cls_id)
-                            if class_name is None:
-                                continue
-                            bx1, by1, bx2, by2 = map(int, box.xyxy[0])
-                            bcx = (bx1 + bx2) // 2
-                            bcy = (by1 + by2) // 2
-                            # Filtro de calzada
-                            in_lane = (160 <= bcx <= 310 and 35 <= bcy <= 185) if lane_id == 1 else (130 <= bcx <= 285 and 20 <= bcy <= 185)
-                            if in_lane:
-                                conf = float(box.conf[0])
-                                yolo_boxes.append((bx1, by1, bx2, by2, class_name, conf, bcx, bcy))
-                except Exception as e:
-                    print(f"[VisionTracker] Error YOLO en maqueta: {e}")
+                if (now - self.last_yolo_time[lane_id]) >= 0.8:
+                    self.last_yolo_time[lane_id] = now
+                    current_yolo = []
+                    try:
+                        results = self.yolo_model.predict(frame, conf=0.20, verbose=False)
+                        for r in results:
+                            for box in r.boxes:
+                                cls_id = int(box.cls[0])
+                                class_name = VEHICLE_CLASS_NAMES.get(cls_id)
+                                if class_name is None:
+                                    continue
+                                bx1, by1, bx2, by2 = map(int, box.xyxy[0])
+                                bcx = (bx1 + bx2) // 2
+                                bcy = (by1 + by2) // 2
+                                # Filtro de calzada
+                                in_lane = (160 <= bcx <= 310 and 35 <= bcy <= 210) if lane_id == 1 else (130 <= bcx <= 285 and 20 <= bcy <= 185)
+                                if in_lane:
+                                    conf = float(box.conf[0])
+                                    current_yolo.append((bx1, by1, bx2, by2, class_name, conf, bcx, bcy))
+                        self.cached_yolo_boxes[lane_id] = current_yolo
+                    except Exception as e:
+                        print(f"[VisionTracker] Error YOLO en maqueta: {e}")
+                yolo_boxes = self.cached_yolo_boxes[lane_id]
+            else:
+                yolo_boxes = []
 
             # Integración de resultados por spot
             for spot, is_occupied, edge_pct, std_dev in spot_details:

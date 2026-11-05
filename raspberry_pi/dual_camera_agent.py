@@ -270,6 +270,7 @@ class USBCameraWorker(threading.Thread):
                 cap.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
                 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, args.height)
                 cap.set(cv2.CAP_PROP_FPS, args.fps)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 for _ in range(3):
                     cap.read()
                 self.cap = cap
